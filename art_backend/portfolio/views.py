@@ -40,13 +40,13 @@ def list_artworks(request):
     artworks = Artwork.objects.all().order_by("-created_at")
     if category:
         artworks = artworks.filter(category=category)
-    return Response([a.to_dict() for a in artworks])
+    return Response([a.to_dict(request) for a in artworks])
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_artwork(request, art_id):
     art = get_object_or_404(Artwork, pk=art_id)
-    return Response(art.to_dict())
+    return Response(art.to_dict(request))
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -64,15 +64,20 @@ def get_blog(request, slug):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_artwork(request):
+    # Convert is_available string to boolean
+    is_available = request.data.get("is_available", True)
+    if isinstance(is_available, str):
+        is_available = is_available.lower() in ['true', '1', 'yes']
+    
     art = Artwork.objects.create(
         title=request.data.get("title", ""),
         description=request.data.get("description", ""),
         price_inr=request.data.get("price_inr", 0),
         category=request.data.get("category", "merch"),
-        is_available=request.data.get("is_available", True),
+        is_available=is_available,
         image=request.FILES.get("image"),
     )
-    return Response({"message": "created", "artwork": art.to_dict()})
+    return Response({"message": "created", "artwork": art.to_dict(request)})
 
 @csrf_exempt
 def admin_login(request):
@@ -81,7 +86,18 @@ def admin_login(request):
         email = body.get("email")
         password = body.get("password")
 
+        # Try authenticating with email as username
         user = authenticate(username=email, password=password)
+        
+        # If that fails, try finding user by email field and authenticate with username
+        if not user:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                user_obj = User.objects.get(email=email)
+                user = authenticate(username=user_obj.username, password=password)
+            except User.DoesNotExist:
+                pass
 
         if user and user.is_staff:  # only allow admin/staff
             refresh = RefreshToken.for_user(user)

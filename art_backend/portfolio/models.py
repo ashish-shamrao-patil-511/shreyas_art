@@ -22,13 +22,19 @@ class Artwork(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def to_dict(self):
+    def to_dict(self, request=None):
+        image_url = None
+        if self.image:
+            # Always build full URL
+            base_url = "http://localhost:8000"
+            image_url = f"{base_url}{self.image.url}"
+        
         return {
             "id": self.id,
             "title": self.title,
             "description": self.description,
             "price_inr": self.price_inr,
-            "image_url": self.image.url if self.image else None,
+            "image_url": image_url,
             "category": self.category,
             "is_available": self.is_available,
             "created_at": self.created_at.isoformat(),
